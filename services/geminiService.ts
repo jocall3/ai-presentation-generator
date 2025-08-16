@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { StoryDocument, ChapterScaffold, PageScaffold } from '../types';
 
@@ -79,8 +78,12 @@ export async function* autoWritePageStream(storyTitle: string, chapterTitle: str
     }
 }
 
-export const generatePageImage = async (pageText: string): Promise<string> => {
-    const prompt = `Generate a cinematic, beautiful illustration for a story. The scene is described as: "${pageText.slice(0, 500)}". Style: digital painting, fantasy, detailed.`;
+export const generatePageImage = async (pageText: string, mood: string): Promise<string> => {
+    const prompt = `Generate a professional, Forbes-quality magazine illustration for a story.
+Style: ${mood}.
+The scene is described as: "${pageText.slice(0, 500)}".
+Focus on cinematic lighting, high detail, and a clear focal point. This is a masterpiece illustration.
+Negative prompt: ugly, blurry, deformed, watermark, text, signature, amateurish.`;
     try {
         const response = await ai.models.generateImages({
             model: imageModel,

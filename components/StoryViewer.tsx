@@ -1,5 +1,4 @@
-
-import React, { useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { StoryDocument, ChapterScaffold, PageScaffold, PageHandlers, EditorActions } from '../types';
 import ChapterComponent from './PlanDisplay';
 import MagazinePreview from './MagazinePreview';
@@ -18,25 +17,34 @@ interface StoryEditorProps {
 const StoryEditor: React.FC<StoryEditorProps> = ({ doc, setDoc, pageHandlers, editorActions, generationStatus, onStopGeneration, onContinueGeneration }) => {
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (doc && doc.chapters.length > 0 && !activeChapterId) {
+            setActiveChapterId(doc.chapters[0].id);
+        }
+    }, [doc, activeChapterId]);
 
     const handleUpdateDoc = (updater: (doc: StoryDocument) => StoryDocument) => {
         setDoc(prevDoc => prevDoc ? updater(prevDoc) : null);
     };
 
     const handleAddChapter = () => {
+        const newPage: PageScaffold = {
+            id: crypto.randomUUID(),
+            page_number: 1,
+            page_text: '',
+            ai_suggestions: ['Start of the new chapter.'],
+            images: [],
+        };
         const newChapter: ChapterScaffold = {
             id: crypto.randomUUID(),
             title: `New Chapter ${doc.chapters.length + 1}`,
             summary: 'A new chapter.',
-            pages: [{
-                id: crypto.randomUUID(),
-                page_number: 1,
-                page_text: '',
-                ai_suggestions: ['Start of the new chapter.'],
-                images: [],
-            }],
+            pages: [newPage],
         };
         handleUpdateDoc(d => ({ ...d, chapters: [...d.chapters, newChapter] }));
+        setActiveChapterId(newChapter.id);
     };
 
     const handleFileAppend = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,6 +54,8 @@ const StoryEditor: React.FC<StoryEditorProps> = ({ doc, setDoc, pageHandlers, ed
         }
     };
     
+    const activeChapter = doc.chapters.find(c => c.id === activeChapterId);
+    
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-[85vh] p-4">
             {/* Left Panel: Table of Contents & Actions */}
@@ -53,11 +63,15 @@ const StoryEditor: React.FC<StoryEditorProps> = ({ doc, setDoc, pageHandlers, ed
                 <h3 className="font-bold mb-3 text-violet-300">Table of Contents</h3>
                 <div className="flex-grow overflow-y-auto space-y-1 pr-2 -mr-2">
                     {doc.chapters.map((chapter, index) => (
-                        <a href={`#chapter-${chapter.id}`} key={chapter.id} className="block p-2 rounded-md hover:bg-gray-700/50 text-gray-300 transition-colors text-sm">
+                        <button 
+                            key={chapter.id} 
+                            onClick={() => setActiveChapterId(chapter.id)}
+                            className={`block w-full text-left p-2 rounded-md transition-colors text-sm ${activeChapterId === chapter.id ? 'bg-violet-900/50 text-white' : 'hover:bg-gray-700/50 text-gray-300'}`}
+                        >
                             <span className="font-semibold text-gray-500 mr-2">{index + 1}.</span>
-                            <span>{chapter.title}</span>
+                            <span className="font-semibold">{chapter.title}</span>
                              <p className="text-xs text-gray-400 pl-6 truncate">{chapter.summary}</p>
-                        </a>
+                        </button>
                     ))}
                 </div>
                  {/* Generation Controls */}
@@ -108,15 +122,17 @@ const StoryEditor: React.FC<StoryEditorProps> = ({ doc, setDoc, pageHandlers, ed
                 <button onClick={editorActions.onAutoDraftAll} className="w-full mb-4 flex items-center justify-center gap-2 p-3 bg-violet-800 hover:bg-violet-700 rounded-lg font-bold">
                     <WandIcon className="w-5 h-5"/> AI, Write Full Draft
                 </button>
-                {doc.chapters.map(chapter => (
-                    <div id={`chapter-${chapter.id}`} key={chapter.id}>
-                        <ChapterComponent 
-                            chapter={chapter} 
-                            pageHandlers={pageHandlers}
-                            isActionLoading={false} // Global action loading is complex, simplified for now
-                        />
+                {activeChapter ? (
+                    <ChapterComponent 
+                        chapter={activeChapter} 
+                        pageHandlers={pageHandlers}
+                        isActionLoading={false} // Global action loading is complex, simplified for now
+                    />
+                ) : (
+                     <div className="flex items-center justify-center h-full text-gray-500">
+                        <p>Select a chapter to begin editing.</p>
                     </div>
-                ))}
+                )}
             </div>
 
             {/* Right Panel: Live Magazine Preview */}

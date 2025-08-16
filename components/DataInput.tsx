@@ -1,15 +1,15 @@
-
 import React, { useState } from 'react';
 import { UploadIcon, SparklesIcon } from './Icons';
 
 interface DataInputProps {
-    onProcess: (data: string) => void;
+    onProcess: (data: string, mood: string) => void;
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
 const DataInput: React.FC<DataInputProps> = ({ onProcess }) => {
     const [file, setFile] = useState<File | null>(null);
+    const [mood, setMood] = useState<string>('');
     const [isParsing, setIsParsing] = useState(false);
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -105,7 +105,7 @@ const DataInput: React.FC<DataInputProps> = ({ onProcess }) => {
                  setIsParsing(false);
                  return;
             }
-            onProcess(text);
+            onProcess(text, mood || 'cinematic, detailed illustration');
         } catch (err) {
             console.error("Failed to parse file", err);
             setError("Could not read the file. It might be corrupted or protected.");
@@ -123,13 +123,13 @@ const DataInput: React.FC<DataInputProps> = ({ onProcess }) => {
                 <UploadIcon className="mx-auto h-16 w-16 text-violet-400 mb-4" />
                 <h2 className="text-2xl font-bold text-white mb-2">Upload Your Document</h2>
                 <p className="text-gray-400 mb-6">
-                    Provide a PDF or TXT document (up to 100MB). The AI will read it and generate a complete story scaffold for you to edit.
+                    Provide a PDF or TXT document and an art style. The AI will read it and generate a complete story scaffold for you.
                 </p>
                 
-                <form onSubmit={handleSubmit} className="w-full">
+                <form onSubmit={handleSubmit} className="w-full space-y-4">
                     <label 
                         htmlFor="file-upload"
-                        className={`relative flex flex-col items-center justify-center w-full h-48 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${dropzoneClasses}`}
+                        className={`relative flex flex-col items-center justify-center w-full h-40 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${dropzoneClasses}`}
                         onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
                     >
                         <div className="text-center">
@@ -141,12 +141,25 @@ const DataInput: React.FC<DataInputProps> = ({ onProcess }) => {
                         <input id="file-upload" type="file" className="hidden" onChange={handleChange} accept="application/pdf,text/plain" />
                     </label>
 
+                    <div>
+                         <label htmlFor="mood-input" className="sr-only">Art Style / Mood</label>
+                         <input
+                            id="mood-input"
+                            type="text"
+                            value={mood}
+                            onChange={(e) => setMood(e.target.value)}
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-3 text-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500 placeholder:text-gray-500"
+                            placeholder="Optional: Describe the art style (e.g., dark fantasy, watercolor)"
+                         />
+                    </div>
+
+
                     {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
 
                     <button
                         type="submit"
                         disabled={!file || isParsing}
-                        className="mt-6 group relative inline-flex items-center justify-center px-8 py-3 text-lg font-bold text-white transition-all duration-200 bg-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="mt-4 group relative inline-flex items-center justify-center px-8 py-3 text-lg font-bold text-white transition-all duration-200 bg-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                          <span className="absolute -inset-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 opacity-75 blur transition-all duration-1000 group-hover:opacity-100 group-hover:-inset-1 disabled:opacity-0"></span>
                          <SparklesIcon className="w-6 h-6 mr-3"/>

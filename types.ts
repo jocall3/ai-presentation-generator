@@ -1,7 +1,6 @@
-
 export type AppState = 'INPUT' | 'EDITING';
 
-export type RobotState = 'idle' | 'thinking' | 'writing';
+export type RobotState = 'idle' | 'thinking' | 'writing' | 'illustrating';
 
 export interface PageScaffold {
   id: string;
@@ -21,6 +20,7 @@ export interface ChapterScaffold {
 export interface StoryDocument {
   id: string;
   title: string;
+  mood: string;
   chapters: ChapterScaffold[];
 }
 

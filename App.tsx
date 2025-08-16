@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { StoryDocument, ChapterScaffold, PageScaffold, AppState, RobotState, EditorActions, PageHandlers } from './types';
 import * as gemini from './services/geminiService';
@@ -41,7 +40,7 @@ const App: React.FC = () => {
         setRobotState('idle');
     };
 
-    const handleScaffoldGeneration = async (data: string) => {
+    const handleScaffoldGeneration = async (data: string, mood: string) => {
         setIsLoading(true);
         setLoadingMessage('Analyzing document...');
         setError(null);
@@ -57,7 +56,7 @@ const App: React.FC = () => {
             setLoadingMessage('Generating story title...');
             const title = await gemini.generateStoryTitle(chunks[0]);
             
-            const doc: StoryDocument = { id: crypto.randomUUID(), title, chapters: [] };
+            const doc: StoryDocument = { id: crypto.randomUUID(), title, mood, chapters: [] };
             const chapterChunks = chunks.reduce((acc, chunk, i) => {
                 const chapterIndex = Math.floor(i / 5); // Group chunks into chapters of ~5 pages
                 if (!acc[chapterIndex]) acc[chapterIndex] = [];
@@ -135,17 +134,10 @@ const App: React.FC = () => {
         alert("Resuming generation is a complex feature! For now, you can manually complete the story.");
     };
 
-    const runPageAction = async <T,>(chapterId: string, pageId: string, action: (page: PageScaffold) => Promise<T>) => {
-        const chapter = storyDocument?.chapters.find(c => c.id === chapterId);
-        const page = chapter?.pages.find(p => p.id === pageId);
-        if (!page) {
-            console.error("Page not found!");
-            setError("An error occurred: Page not found.");
-            return;
-        }
-        setRobotState('thinking');
+    const runPageAction = async <T,>(originalRobotState: RobotState, action: () => Promise<T>) => {
+        setRobotState(originalRobotState);
         try {
-            await action(page);
+            await action();
         } catch (err) {
             console.error("Page action failed", err);
             setError("An AI action failed. Please try again.");
@@ -168,8 +160,10 @@ const App: React.FC = () => {
             });
         },
         onExpandTextStream: async (chapterId, pageId) => {
-            await runPageAction(chapterId, pageId, async (page) => {
-                 setRobotState('writing');
+             await runPageAction('writing', async () => {
+                 const chapter = storyDocument?.chapters.find(c => c.id === chapterId);
+                 const page = chapter?.pages.find(p => p.id === pageId);
+                 if (!page) return;
                  const stream = gemini.expandPageTextStream(page.page_text);
                  for await (const chunk of stream) {
                      setStoryDocument(doc => {
@@ -186,16 +180,20 @@ const App: React.FC = () => {
             });
         },
         onGenerateImage: async (chapterId, pageId) => {
-             await runPageAction(chapterId, pageId, async (page) => {
-                const imageUrl = await gemini.generatePageImage(page.page_text || page.ai_suggestions[0] || "A fantasy landscape");
-                pageHandlers.onUpdatePage(chapterId, pageId, { images: [imageUrl] });
+            await runPageAction('illustrating', async () => {
+                const chapter = storyDocument?.chapters.find(c => c.id === chapterId);
+                const page = chapter?.pages.find(p => p.id === pageId);
+                if (!page || !storyDocument) return;
+                const imageUrl = await gemini.generatePageImage(page.page_text || page.ai_suggestions[0] || "A fantasy landscape", storyDocument.mood);
+                if (imageUrl) {
+                    pageHandlers.onUpdatePage(chapterId, pageId, { images: [...page.images, imageUrl] });
+                }
             });
         },
         onAutoWritePageStream: async (chapterId, pageId) => {
-             await runPageAction(chapterId, pageId, async (page) => {
-                 setRobotState('writing');
+            await runPageAction('writing', async () => {
                  pageHandlers.onUpdatePage(chapterId, pageId, { page_text: '' }); // Clear text first
-                 const stream = gemini.autoWritePageStream(storyDocument?.title || '', storyDocument?.chapters.find(c=>c.id === chapterId)?.title || '', page.ai_suggestions.join(' '));
+                 const stream = gemini.autoWritePageStream(storyDocument?.title || '', storyDocument?.chapters.find(c=>c.id === chapterId)?.title || '', storyDocument?.chapters.find(c => c.id === chapterId)?.pages.find(p => p.id === pageId)?.ai_suggestions.join(' ') || '');
                  for await (const chunk of stream) {
                      setStoryDocument(doc => {
                         if (!doc) return null;
@@ -233,8 +231,7 @@ const App: React.FC = () => {
         },
         onSuggestTitles: async () => {
             if (!storyDocument) return;
-            setRobotState('thinking');
-            try {
+            await runPageAction('thinking', async () => {
                 const newTitles = await gemini.suggestNewChapterTitles(storyDocument);
                 setStoryDocument(doc => {
                     if (!doc) return null;
@@ -243,17 +240,11 @@ const App: React.FC = () => {
                         chapters: doc.chapters.map((c, i) => ({ ...c, title: newTitles[i] || c.title }))
                     };
                 });
-            } catch(err) {
-                 console.error(err);
-                 setError("Could not suggest new titles.");
-            } finally {
-                 setRobotState('idle');
-            }
+            });
         },
         onSummarizeChapters: async () => {
              if (!storyDocument) return;
-            setRobotState('thinking');
-            try {
+             await runPageAction('thinking', async () => {
                 const summaries = await gemini.generateChapterSummaries(storyDocument);
                  setStoryDocument(doc => {
                     if (!doc) return null;
@@ -262,12 +253,7 @@ const App: React.FC = () => {
                         chapters: doc.chapters.map((c, i) => ({ ...c, summary: summaries[i] || c.summary }))
                     };
                 });
-            } catch(err) {
-                 console.error(err);
-                 setError("Could not generate summaries.");
-            } finally {
-                 setRobotState('idle');
-            }
+            });
         }
     };
 

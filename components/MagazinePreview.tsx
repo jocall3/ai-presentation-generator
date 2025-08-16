@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { StoryDocument } from '../types';
 
@@ -9,40 +8,57 @@ interface MagazinePreviewProps {
 const MagazinePreview: React.FC<MagazinePreviewProps> = ({ doc }) => {
     
     // Function to interleave images with text paragraphs
-    const renderPageContent = (text: string, images: string[]) => {
+    const renderPageContent = (text: string, images: string[], isFirstPage: boolean) => {
         const paragraphs = text.split('\n').filter(p => p.trim() !== '');
         const contentElements = [];
+        const mutableImages = [...images];
+
+        // If it's the first page of a chapter, use the first image as a hero image.
+        if (isFirstPage && mutableImages.length > 0) {
+            const heroImage = mutableImages.shift();
+            contentElements.push(
+                <img key="hero-img" src={heroImage} alt="Chapter opening illustration" className="magazine-hero-image" />
+            );
+        }
         
+        const textBlock = [];
         for (let i = 0; i < paragraphs.length; i++) {
-            // Add an image before every 2nd paragraph if available
-            if (i > 0 && i % 2 === 0 && images.length > 0) {
-                 const imgUrl = images.shift(); // take the next available image
+            // Add an inline image before every 2nd paragraph if available
+            if (i > 0 && i % 2 === 0 && mutableImages.length > 0) {
+                 const imgUrl = mutableImages.shift();
                  if(imgUrl) {
-                    contentElements.push(
+                    textBlock.push(
                         <img key={`img-${i}`} src={imgUrl} alt="Story illustration" className={i % 4 === 0 ? 'img-left' : 'img-right'} />
                     );
                  }
             }
-            contentElements.push(<p key={`p-${i}`}>{paragraphs[i]}</p>);
+            textBlock.push(<p key={`p-${i}`}>{paragraphs[i]}</p>);
         }
+        contentElements.push(<div key="text-content" className="magazine-columns">{textBlock}</div>);
 
         // Add any remaining images at the end
-        images.forEach((imgUrl, i) => {
-            contentElements.push(<img key={`img-rem-${i}`} src={imgUrl} alt="Story illustration" />);
-        });
+        if (mutableImages.length > 0) {
+            contentElements.push(
+                <div key="remaining-images" className="mt-4">
+                    {mutableImages.map((imgUrl, i) => (
+                        <img key={`img-rem-${i}`} src={imgUrl} alt="Story illustration" className="w-full h-auto rounded-lg mb-4" />
+                    ))}
+                </div>
+            );
+        }
         
-        return <div className="magazine-columns">{contentElements}</div>;
+        return contentElements;
     };
 
     return (
-        <div className="p-4 text-gray-300 magazine-preview">
+        <div className="p-4 magazine-preview">
             <h1>{doc.title}</h1>
             {doc.chapters.map(chapter => (
                 <div key={chapter.id}>
                     <h2>{chapter.title}</h2>
                     {chapter.pages.map((page, index) => (
                          <div key={page.id} className="clearfix">
-                           {renderPageContent(page.page_text, [...page.images])}
+                           {renderPageContent(page.page_text, page.images, index === 0)}
                         </div>
                     ))}
                 </div>

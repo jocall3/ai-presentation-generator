@@ -1,7 +1,7 @@
-
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { RobotState } from '../types';
+import { PaintBrushIcon } from './Icons';
 
 interface RobotProps {
     robotState: RobotState;
@@ -20,6 +20,7 @@ const Robot: React.FC<RobotProps> = ({ robotState, mousePosition }) => {
         idle: { y: 0 },
         thinking: { y: -5, scale: 1.05 },
         writing: { y: 2, rotate: [0, 1, -1, 0] },
+        illustrating: { y: 2, rotate: [0, 2, -2, 0] },
     };
 
     return (
@@ -34,8 +35,8 @@ const Robot: React.FC<RobotProps> = ({ robotState, mousePosition }) => {
                 animate={robotState}
                 variants={variants}
                 transition={{
-                    y: { yoyo: Infinity, duration: 1.5, ease: 'easeInOut' },
-                    rotate: { yoyo: Infinity, duration: 0.5 }
+                    y: { repeat: Infinity, repeatType: 'reverse', duration: 1.5, ease: 'easeInOut' },
+                    rotate: { repeat: Infinity, repeatType: 'reverse', duration: 0.5 }
                 }}
             >
                 <svg width="120" height="120" viewBox="0 0 100 100">
@@ -66,10 +67,11 @@ const Robot: React.FC<RobotProps> = ({ robotState, mousePosition }) => {
                         />
                     </motion.g>
 
-                     {/* Keyboard for writing */}
+                     {/* Action Accessories */}
                     <AnimatePresence>
                     {robotState === 'writing' && (
                         <motion.g
+                            key="writing"
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: 20, opacity: 0 }}
@@ -84,6 +86,22 @@ const Robot: React.FC<RobotProps> = ({ robotState, mousePosition }) => {
                                 animate={{ y: [0, -3, 0]}}
                                 transition={{ repeat: Infinity, duration: 0.3 }}
                             />
+                        </motion.g>
+                    )}
+                     {robotState === 'illustrating' && (
+                        <motion.g
+                            key="illustrating"
+                            initial={{ y: 10, opacity: 0, rotate: -20, x: 10 }}
+                            animate={{ y: 0, opacity: 1, rotate: 10, x: 0 }}
+                            exit={{ y: 10, opacity: 0, rotate: -20 }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        >
+                             {/* Hand */}
+                            <circle cx="75" cy="75" r="6" fill="#6B7280" />
+                            {/* Paintbrush */}
+                            <g transform="translate(65, 55) rotate(45)">
+                               <PaintBrushIcon className="w-8 h-8 text-purple-400" />
+                            </g>
                         </motion.g>
                     )}
                     </AnimatePresence>

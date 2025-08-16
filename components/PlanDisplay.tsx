@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import type { ChapterScaffold, PageScaffold, PageHandlers } from '../types';
 import { SparklesIcon, ImagePlusIcon, FileTextIcon, WandIcon, ChevronDownIcon } from './Icons';
@@ -12,6 +11,20 @@ interface PageComponentProps {
 }
 
 const PageComponent: React.FC<PageComponentProps> = ({ page, chapterId, handlers, isActionLoading }) => {
+    const [mainImage, setMainImage] = useState(page.images[0] || null);
+
+    React.useEffect(() => {
+        // Update main image if the array changes and there's no current main image
+        if (!mainImage && page.images.length > 0) {
+            setMainImage(page.images[0]);
+        } else if (page.images.length > 0 && !page.images.includes(mainImage!)) {
+            // If main image was deleted, set to first in list
+            setMainImage(page.images[0]);
+        } else if (page.images.length === 0) {
+            setMainImage(null);
+        }
+    }, [page.images, mainImage]);
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
             {/* Left side: Text Editor & Actions */}
@@ -40,22 +53,32 @@ const PageComponent: React.FC<PageComponentProps> = ({ page, chapterId, handlers
                     </button>
                 </div>
             </div>
-             {/* Right side: Image */}
+             {/* Right side: Image Gallery */}
             <div className="flex flex-col">
                 <div className="aspect-video bg-gray-700 rounded-lg border border-gray-600 flex items-center justify-center overflow-hidden flex-grow">
-                     {page.images && page.images[0] ? (
-                        <img src={page.images[0]} alt={`Illustration for page ${page.page_number}`} className="w-full h-full object-cover"/>
+                     {mainImage ? (
+                        <img src={mainImage} alt={`Illustration for page ${page.page_number}`} className="w-full h-full object-cover"/>
                     ) : (
                         <p className="text-gray-500 text-sm">No Image</p>
                     )}
                 </div>
+                {/* Thumbnails */}
+                {page.images.length > 1 && (
+                    <div className="flex gap-2 mt-2">
+                        {page.images.map((img, idx) => (
+                             <button key={idx} onClick={() => setMainImage(img)} className={`w-16 h-10 rounded-md overflow-hidden border-2 ${mainImage === img ? 'border-violet-400' : 'border-transparent'}`}>
+                                <img src={img} alt={`Thumbnail ${idx+1}`} className="w-full h-full object-cover" />
+                             </button>
+                        ))}
+                    </div>
+                )}
                  <button 
                     onClick={() => handlers.onGenerateImage(chapterId, page.id)}
                     disabled={isActionLoading} 
                     className="w-full mt-2 flex items-center justify-center space-x-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                  >
                     <ImagePlusIcon className="w-5 h-5"/>
-                    <span>Generate Image</span>
+                    <span>{page.images.length > 0 ? 'Add Another Image' : 'Generate Image'}</span>
                 </button>
             </div>
         </div>
