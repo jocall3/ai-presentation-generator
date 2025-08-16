@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { UploadIcon, SparklesIcon } from './Icons';
 
@@ -113,16 +114,16 @@ const DataInput: React.FC<DataInputProps> = ({ onProcess }) => {
     };
 
     const dropzoneClasses = dragActive 
-        ? "border-indigo-400 bg-indigo-900/30" 
+        ? "border-violet-400 bg-violet-900/30" 
         : "border-gray-600 hover:border-gray-500";
 
     return (
         <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <div className="w-full max-w-2xl">
-                <UploadIcon className="mx-auto h-16 w-16 text-indigo-400 mb-4" />
+                <UploadIcon className="mx-auto h-16 w-16 text-violet-400 mb-4" />
                 <h2 className="text-2xl font-bold text-white mb-2">Upload Your Document</h2>
                 <p className="text-gray-400 mb-6">
-                    Provide a PDF or TXT document (up to 100MB). The AI will read it and generate a complete presentation draft for you.
+                    Provide a PDF or TXT document (up to 100MB). The AI will read it and generate a complete story scaffold for you to edit.
                 </p>
                 
                 <form onSubmit={handleSubmit} className="w-full">
@@ -147,9 +148,9 @@ const DataInput: React.FC<DataInputProps> = ({ onProcess }) => {
                         disabled={!file || isParsing}
                         className="mt-6 group relative inline-flex items-center justify-center px-8 py-3 text-lg font-bold text-white transition-all duration-200 bg-gray-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                         <span className="absolute -inset-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 opacity-75 blur transition-all duration-1000 group-hover:opacity-100 group-hover:-inset-1 disabled:opacity-0"></span>
+                         <span className="absolute -inset-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 opacity-75 blur transition-all duration-1000 group-hover:opacity-100 group-hover:-inset-1 disabled:opacity-0"></span>
                          <SparklesIcon className="w-6 h-6 mr-3"/>
-                         {isParsing ? 'Reading file...' : 'Generate Presentation'}
+                         {isParsing ? 'Reading file...' : 'Generate Story Scaffold'}
                     </button>
                 </form>
             </div>

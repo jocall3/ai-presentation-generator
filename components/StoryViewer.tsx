@@ -1,99 +1,130 @@
-import React, { useState } from 'react';
-import type { PresentationDocument, SlideScaffold, SlideHandlers, ChatMessage } from '../types';
-import SlideComponent from './PlanDisplay';
-import { PlusIcon } from './Icons';
 
-interface PresentationEditorProps {
-    doc: PresentationDocument;
-    setDoc: React.Dispatch<React.SetStateAction<PresentationDocument | null>>;
-    slideHandlers: SlideHandlers;
-    chatMessages: ChatMessage[];
-    isAiAnswering: boolean;
-    onAskQuestion: (question: string) => void;
-    actionInProgress: { slideId: string; action: 'content' | 'image' } | null;
+import React, { useRef } from 'react';
+import type { StoryDocument, ChapterScaffold, PageScaffold, PageHandlers, EditorActions } from '../types';
+import ChapterComponent from './PlanDisplay';
+import MagazinePreview from './MagazinePreview';
+import { PlusIcon, DocumentPlusIcon, WandIcon, ChatBubbleBottomCenterTextIcon, SparklesIcon, PlayIcon, StopIcon } from './Icons';
+
+interface StoryEditorProps {
+    doc: StoryDocument;
+    setDoc: React.Dispatch<React.SetStateAction<StoryDocument | null>>;
+    pageHandlers: PageHandlers;
+    editorActions: EditorActions;
+    generationStatus: { active: boolean, completed: number, total: number };
+    onStopGeneration: () => void;
+    onContinueGeneration: () => void;
 }
 
-const PresentationEditor: React.FC<PresentationEditorProps> = ({ doc, setDoc, slideHandlers, chatMessages, isAiAnswering, onAskQuestion, actionInProgress }) => {
-    const [activeSlideId, setActiveSlideId] = useState<string>(doc.slides[0]?.id || '');
+const StoryEditor: React.FC<StoryEditorProps> = ({ doc, setDoc, pageHandlers, editorActions, generationStatus, onStopGeneration, onContinueGeneration }) => {
+    
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleUpdateDoc = (updater: (doc: PresentationDocument) => PresentationDocument) => {
+    const handleUpdateDoc = (updater: (doc: StoryDocument) => StoryDocument) => {
         setDoc(prevDoc => prevDoc ? updater(prevDoc) : null);
     };
 
-    const handleAddSlide = () => {
-        const newSlide: SlideScaffold = {
+    const handleAddChapter = () => {
+        const newChapter: ChapterScaffold = {
             id: crypto.randomUUID(),
-            title: `New Slide ${doc.slides.length + 1}`,
-            content: ['- Add your content here.'],
-            imageUrl: null,
+            title: `New Chapter ${doc.chapters.length + 1}`,
+            summary: 'A new chapter.',
+            pages: [{
+                id: crypto.randomUUID(),
+                page_number: 1,
+                page_text: '',
+                ai_suggestions: ['Start of the new chapter.'],
+                images: [],
+            }],
         };
-        handleUpdateDoc(d => ({ ...d, slides: [...d.slides, newSlide] }));
-        setActiveSlideId(newSlide.id);
+        handleUpdateDoc(d => ({ ...d, chapters: [...d.chapters, newChapter] }));
     };
 
-    const handleDeleteSlide = (slideId: string) => {
-        const slideIndex = doc.slides.findIndex(s => s.id === slideId);
-        handleUpdateDoc(d => ({ ...d, slides: d.slides.filter(s => s.id !== slideId) }));
-
-        if (activeSlideId === slideId) {
-            if (doc.slides.length > 1) {
-                const newActiveIndex = Math.max(0, slideIndex - 1);
-                setActiveSlideId(doc.slides[newActiveIndex].id);
-            } else {
-                setActiveSlideId('');
-            }
+    const handleFileAppend = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        // This is a placeholder for the more complex file reading and appending logic
+        if (e.target.files && e.target.files[0]) {
+             alert(`Appending from "${e.target.files[0].name}" is a future feature!`);
         }
     };
     
-    const activeSlide = doc.slides.find(s => s.id === activeSlideId);
-
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[85vh] p-4">
-            {/* Left Panel: Slide Navigator */}
-            <aside className="lg:col-span-3 bg-gray-900/60 p-4 rounded-lg border border-gray-700 flex flex-col">
-                <h3 className="font-bold mb-3 text-indigo-300">Slides</h3>
-                <div className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
-                    {doc.slides.map((slide, index) => (
-                        <button
-                            key={slide.id}
-                            onClick={() => setActiveSlideId(slide.id)}
-                            className={`w-full text-left p-2 rounded-md transition-colors text-sm ${activeSlideId === slide.id ? 'bg-indigo-500/30 text-white' : 'hover:bg-gray-700/50 text-gray-300'}`}
-                        >
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-[85vh] p-4">
+            {/* Left Panel: Table of Contents & Actions */}
+            <aside className="xl:col-span-3 bg-gray-900/60 p-4 rounded-lg border border-gray-700 flex flex-col">
+                <h3 className="font-bold mb-3 text-violet-300">Table of Contents</h3>
+                <div className="flex-grow overflow-y-auto space-y-1 pr-2 -mr-2">
+                    {doc.chapters.map((chapter, index) => (
+                        <a href={`#chapter-${chapter.id}`} key={chapter.id} className="block p-2 rounded-md hover:bg-gray-700/50 text-gray-300 transition-colors text-sm">
                             <span className="font-semibold text-gray-500 mr-2">{index + 1}.</span>
-                            <span>{slide.title}</span>
-                        </button>
+                            <span>{chapter.title}</span>
+                             <p className="text-xs text-gray-400 pl-6 truncate">{chapter.summary}</p>
+                        </a>
                     ))}
                 </div>
-                <button
-                    onClick={handleAddSlide}
-                    className="w-full mt-4 flex items-center justify-center space-x-2 px-3 py-2 bg-indigo-600/50 hover:bg-indigo-600/80 rounded-lg text-sm font-medium transition-colors"
-                >
-                    <PlusIcon className="w-4 h-4" />
-                    <span>Add Slide</span>
-                </button>
-            </aside>
-
-            {/* Main Panel: Slide Editor */}
-            <div className="lg:col-span-9 overflow-y-auto pr-2 -mr-2">
-                {activeSlide ? (
-                    <SlideComponent
-                        slide={activeSlide}
-                        isActive={true}
-                        handlers={slideHandlers}
-                        onDelete={() => handleDeleteSlide(activeSlide.id)}
-                        chatMessages={chatMessages}
-                        isAiAnswering={isAiAnswering}
-                        onAskQuestion={onAskQuestion}
-                        actionInProgress={actionInProgress}
-                    />
-                ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                        <p>Select a slide to edit or add a new one.</p>
+                 {/* Generation Controls */}
+                {generationStatus.total > 0 && generationStatus.completed < generationStatus.total && (
+                    <div className="mt-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="flex justify-between items-center mb-2">
+                            <p className="text-sm font-medium text-gray-300">
+                                {generationStatus.active ? 'Generating Chapters...' : 'Generation Paused'}
+                            </p>
+                            <p className="text-sm text-gray-400">{generationStatus.completed} / {generationStatus.total}</p>
+                        </div>
+                        <div className="w-full bg-gray-600 rounded-full h-2 mb-2">
+                            <div className="bg-violet-500 h-2 rounded-full" style={{ width: `${(generationStatus.completed / generationStatus.total) * 100}%` }}></div>
+                        </div>
+                        {generationStatus.active ? (
+                            <button onClick={onStopGeneration} className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-red-600/50 hover:bg-red-600/80 rounded-md">
+                                <StopIcon className="w-4 h-4" /> Stop Generation
+                            </button>
+                        ) : (
+                            <button onClick={onContinueGeneration} className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-green-600/50 hover:bg-green-600/80 rounded-md">
+                                <PlayIcon className="w-4 h-4" /> Continue Generation
+                            </button>
+                        )}
                     </div>
                 )}
+                 <div className="mt-4 space-y-2 border-t border-gray-700 pt-4">
+                    <button onClick={handleAddChapter} className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-gray-700 hover:bg-gray-600 rounded-md">
+                        <PlusIcon className="w-4 h-4" /> Add Chapter
+                    </button>
+                     <input type="file" ref={fileInputRef} onChange={handleFileAppend} className="hidden" accept="application/pdf,text/plain" />
+                    <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-gray-700 hover:bg-gray-600 rounded-md">
+                        <DocumentPlusIcon className="w-4 h-4" /> Add Content
+                    </button>
+                    <div className="relative group">
+                        <button className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-violet-600/80 hover:bg-violet-600 rounded-md">
+                            <WandIcon className="w-4 h-4"/> AI Assist
+                        </button>
+                        <div className="absolute bottom-full mb-2 w-full bg-gray-800 border border-gray-700 rounded-lg p-2 space-y-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
+                            <button onClick={editorActions.onSuggestTitles} className="w-full text-left text-sm p-2 hover:bg-gray-700 rounded-md flex items-center gap-2"><SparklesIcon className="w-4 h-4"/> Improve Chapter Titles</button>
+                            <button onClick={editorActions.onSummarizeChapters} className="w-full text-left text-sm p-2 hover:bg-gray-700 rounded-md flex items-center gap-2"><ChatBubbleBottomCenterTextIcon className="w-4 h-4"/> Update Summaries</button>
+                        </div>
+                    </div>
+                 </div>
+            </aside>
+
+            {/* Main Panel: Editor Canvas */}
+            <div className="xl:col-span-5 overflow-y-auto pr-2 -mr-2">
+                <button onClick={editorActions.onAutoDraftAll} className="w-full mb-4 flex items-center justify-center gap-2 p-3 bg-violet-800 hover:bg-violet-700 rounded-lg font-bold">
+                    <WandIcon className="w-5 h-5"/> AI, Write Full Draft
+                </button>
+                {doc.chapters.map(chapter => (
+                    <div id={`chapter-${chapter.id}`} key={chapter.id}>
+                        <ChapterComponent 
+                            chapter={chapter} 
+                            pageHandlers={pageHandlers}
+                            isActionLoading={false} // Global action loading is complex, simplified for now
+                        />
+                    </div>
+                ))}
             </div>
+
+            {/* Right Panel: Live Magazine Preview */}
+            <aside className="xl:col-span-4 bg-gray-900/60 p-4 rounded-lg border border-gray-700 overflow-y-auto">
+                <MagazinePreview doc={doc} />
+            </aside>
         </div>
     );
 };
 
-export default PresentationEditor;
+export default StoryEditor;

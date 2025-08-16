@@ -1,177 +1,131 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import type { PresentationDocument, SlideScaffold } from '../types';
+import type { StoryDocument, ChapterScaffold, PageScaffold } from '../types';
 
 const API_KEY = process.env.API_KEY;
-if (!API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
+if (!API_KEY) throw new Error("API_KEY environment variable not set");
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
+const textModel = 'gemini-2.5-flash';
+const imageModel = 'imagen-3.0-generate-002';
 
-const slideScaffoldSchema = {
+const chapterScaffoldSchema = {
     type: Type.OBJECT,
     properties: {
-        title: { type: Type.STRING, description: "A concise, engaging title for this presentation slide." },
-        content: {
+        title: { type: Type.STRING, description: "A compelling and relevant title for this chapter of the story." },
+        pages: {
             type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "3-5 key bullet points summarizing the main information. Each bullet should be a string."
-        },
-        image_prompt: {
-            type: Type.STRING,
-            description: "A descriptive prompt for a visually appealing, professional image relevant to the slide's content. E.g., 'A minimalist graphic of a rising stock chart with a blue background'."
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    ai_suggestions: {
+                        type: Type.ARRAY,
+                        items: { type: Type.STRING },
+                        description: "A brief, 1-2 sentence summary or key idea for this page. This will guide the user's writing."
+                    },
+                },
+                required: ["ai_suggestions"],
+            },
+            description: "A breakdown of the chapter into several pages. Each page should have a summary/suggestion."
         }
     },
-    required: ["title", "content", "image_prompt"],
+    required: ["title", "pages"],
 };
 
-export const generatePresentationTitle = async (firstChunk: string): Promise<string> => {
-    const prompt = `Based on the following text, generate a single, professional, and fitting title for a presentation. Return only the title as a plain string.
+export const generateStoryTitle = async (firstChunk: string): Promise<string> => {
+    const prompt = `Based on the following text, generate a single, compelling title for a story. Return only the title as a plain string. Text: "${firstChunk.slice(0, 1000)}"`;
+    const response = await ai.models.generateContent({ model: textModel, contents: prompt });
+    return response.text.trim().replace(/"/g, '');
+};
 
-    Text excerpt:
-    ---
-    ${firstChunk.slice(0, 2000)} 
-    ---
-    
-    Presentation Title:`;
+export const generateChapterFromChunk = async (pageChunks: string[], chapterNumber: number, totalChapters: number, storyTitle: string): Promise<ChapterScaffold> => {
+    const context = `You are a master storyteller creating a story scaffold. The story is titled "${storyTitle}". This is for Chapter ${chapterNumber} of ${totalChapters}. Based on the following text, generate a chapter title and break it down into logical pages, each with a 1-2 sentence summary/suggestion.`;
+    const fullText = pageChunks.join(' ');
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
+        model: textModel,
+        contents: `${context}\n\nFull text for this chapter:\n---\n${fullText}\n---`,
+        config: { responseMimeType: 'application/json', responseSchema: chapterScaffoldSchema }
     });
     
-    return response.text.trim().replace(/"/g, ''); // Clean up potential quotes
+    const parsed = JSON.parse(response.text.trim());
+    return {
+        id: crypto.randomUUID(),
+        title: parsed.title,
+        summary: 'AI summary will appear here.',
+        pages: parsed.pages.map((p: any, i: number) => ({
+            id: crypto.randomUUID(),
+            page_number: i + 1,
+            page_text: '',
+            ai_suggestions: p.ai_suggestions || ['AI suggestion failed to generate.'],
+            images: [],
+        })),
+    };
 };
 
-export const generateSlideImage = async (prompt: string): Promise<string> => {
+export async function* expandPageTextStream(existingText: string): AsyncGenerator<string> {
+    const prompt = `You are a creative writing assistant. Continue the following story text, adding another paragraph or two. Do not repeat the existing text. Existing text: "${existingText}"`;
+    const response = await ai.models.generateContentStream({ model: textModel, contents: prompt });
+    for await (const chunk of response) {
+        yield chunk.text;
+    }
+}
+
+export async function* autoWritePageStream(storyTitle: string, chapterTitle: string, pageSuggestion: string): AsyncGenerator<string> {
+    const prompt = `You are a ghostwriter. The story is "${storyTitle}", chapter is "${chapterTitle}". Write a full, engaging page (3-4 paragraphs) based on this key idea: "${pageSuggestion}"`;
+    const response = await ai.models.generateContentStream({ model: textModel, contents: prompt });
+    for await (const chunk of response) {
+        yield chunk.text;
+    }
+}
+
+export const generatePageImage = async (pageText: string): Promise<string> => {
+    const prompt = `Generate a cinematic, beautiful illustration for a story. The scene is described as: "${pageText.slice(0, 500)}". Style: digital painting, fantasy, detailed.`;
     try {
         const response = await ai.models.generateImages({
-            model: 'imagen-3.0-generate-002',
+            model: imageModel,
             prompt: prompt,
-            config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/jpeg',
-                aspectRatio: '16:9',
-            },
+            config: { numberOfImages: 1, outputMimeType: 'image/jpeg', aspectRatio: '16:9' },
         });
-        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-        return `data:image/jpeg;base64,${base64ImageBytes}`;
+        return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
     } catch (e) {
-        console.error("Image generation failed, returning null", e);
+        console.error("Image generation failed", e);
         return ""; // Return empty string on failure
     }
 };
 
-
-export const generateSlideFromChunk = async (chunk: string, slideNumber: number, totalSlides: number, presentationTitle: string): Promise<SlideScaffold> => {
-    const prompt = `You are an AI presentation assistant. The overall presentation is titled "${presentationTitle}".
-    This is for Slide ${slideNumber} of ${totalSlides}.
-
-    Based on the following data chunk, create the content for a single presentation slide. The content must include a concise slide title, 3-5 key bullet points, and a descriptive prompt for a relevant, professional image.
-
-    Data chunk for this slide:
-    ---
-    ${chunk}
-    ---
+export const suggestNewChapterTitles = async (doc: StoryDocument): Promise<string[]> => {
+    const prompt = `You are a book editor. Given the following chapter contents, suggest a new, more compelling title for each chapter. Return a JSON array of strings.
     
-    Generate the slide content.`;
-
+    Story Title: ${doc.title}
+    Chapters:
+    ${doc.chapters.map((c, i) => `Chapter ${i+1} Content: ${c.pages.map(p => p.page_text || p.ai_suggestions[0]).join(' ').slice(0, 500)}...`).join('\n')}
+    `;
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: textModel,
         contents: prompt,
         config: {
             responseMimeType: 'application/json',
-            responseSchema: slideScaffoldSchema,
+            responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
         }
     });
-
-    const jsonText = response.text.trim();
-    const parsed = JSON.parse(jsonText);
-
-    // Generate image in parallel
-    const imageUrl = await generateSlideImage(parsed.image_prompt);
-
-    const slideScaffold: SlideScaffold = {
-        id: crypto.randomUUID(),
-        title: parsed.title,
-        content: parsed.content || [],
-        imageUrl: imageUrl || null,
-    };
-    
-    return slideScaffold;
+    return JSON.parse(response.text.trim());
 };
 
-export const regenerateSlideContent = async (slideTitle: string): Promise<string[]> => {
-    const prompt = `You are an AI presentation assistant. For a slide titled "${slideTitle}", generate 3-5 key bullet points. The tone should be professional and concise.`;
+export const generateChapterSummaries = async (doc: StoryDocument): Promise<string[]> => {
+     const prompt = `You are a book editor. For each chapter provided, write a concise 1-sentence summary. Return a JSON array of strings.
     
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+    Story Title: ${doc.title}
+    Chapters:
+    ${doc.chapters.map((c, i) => `Chapter ${i+1} Title: ${c.title}\nContent: ${c.pages.map(p => p.page_text || p.ai_suggestions[0]).join(' ').slice(0, 500)}...`).join('\n')}
+    `;
+     const response = await ai.models.generateContent({
+        model: textModel,
         contents: prompt,
         config: {
             responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    content: {
-                        type: Type.ARRAY,
-                        items: { type: Type.STRING },
-                    }
-                },
-                required: ['content']
-            }
+            responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
         }
     });
-    
-    const parsed = JSON.parse(response.text.trim());
-    return parsed.content || [];
-};
-
-const generateImagePromptForSlide = async (title: string, content: string[]): Promise<string> => {
-    const prompt = `Generate a descriptive prompt for a visually appealing, professional image relevant to the following presentation slide content. The prompt should be suitable for an AI image generator.
-
-    Slide Title: "${title}"
-    Slide Content: ${content.join(', ')}
-
-    Image Prompt:`;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
-    
-    return response.text.trim().replace(/"/g, '');
-};
-
-export const generateImageForSlide = async (title: string, content: string[]): Promise<string> => {
-    const imagePrompt = await generateImagePromptForSlide(title, content);
-    return await generateSlideImage(imagePrompt);
-};
-
-
-export const answerQuestionAboutPresentation = async (presentation: PresentationDocument, question: string): Promise<string> => {
-    const presentationContext = `
-        Presentation Title: ${presentation.title}
-        Slides:
-        ---
-        ${presentation.slides.map((slide, index) => 
-            `Slide ${index + 1}: ${slide.title}\n${slide.content.map(c => `- ${c}`).join('\n')}`
-        ).join('\n\n')}
-        ---
-    `;
-
-    const prompt = `You are an AI assistant with expertise in the content of the following presentation. Based ONLY on the provided text, answer the user's question concisely. If the answer is not in the text, say "I cannot find that information in the presentation."
-    
-    ${presentationContext}
-
-    User Question: "${question}"
-
-    Answer:
-    `;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
-
-    return response.text.trim();
+    return JSON.parse(response.text.trim());
 };

@@ -1,1 +1,2 @@
-export const APP_TITLE = "AI Presentation Generator";
+
+export const APP_TITLE = "AI Story Scaffolding";

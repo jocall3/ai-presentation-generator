@@ -1,5 +1,5 @@
 {
-  "name": "AI Presentation Generator",
-  "description": "An AI-powered application that transforms your documents into professional presentations. Edit slides, generate images, and ask the AI questions about your content.",
+  "name": "AI Story Scaffolding App",
+  "description": "An interactive, AI-powered story creation studio. Upload documents, generate a story scaffold, and use page-by-page AI tools to write, illustrate, and format your narrative.",
   "requestFramePermissions": []
 }
