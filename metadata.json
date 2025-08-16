@@ -1,0 +1,5 @@
+{
+  "name": "AI Presentation Generator",
+  "description": "An AI-powered application that transforms your documents into professional presentations. Edit slides, generate images, and ask the AI questions about your content.",
+  "requestFramePermissions": []
+}
